@@ -1,13 +1,12 @@
 from typing import Any, List
 import tkinter as tk
-from tkinter import ttk
+import ttkbootstrap as ttk
 
 class TreeviewEdit(ttk.Treeview):
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
 
         self.bind("<Double-1>", self.on_double_click)
-        self.bind("<Tab>", self.nextfocus)
         '''
         style = ttk.Style()
         style.theme_use("default")
@@ -32,8 +31,6 @@ class TreeviewEdit(ttk.Treeview):
         if region_clicked not in ("tree", "cell", "nothing"):
             return
 
-        print(region_clicked)
-
         column = self.identify_column(event.x)
         column_index = int(column[1:])
 
@@ -46,6 +43,7 @@ class TreeviewEdit(ttk.Treeview):
         #new row region
         if selected_text == "" and selected_values == "":
             self.add_row(event)
+            return
 
         #parent region
         elif column == "#0":
@@ -55,7 +53,6 @@ class TreeviewEdit(ttk.Treeview):
         elif len(selected_values) != 0:
             _text = selected_values[column_index - 1]
 
-        print(_text)
 
         column_box = self.bbox(selected_iid, column)
         entry_edit = ttk.Entry(root, width =column_box[2])
@@ -80,17 +77,40 @@ class TreeviewEdit(ttk.Treeview):
 
     # add a new row to the treeview object
     def add_row(self, event) -> None:
+        print("TODO: ADD ROW")
+        '''
+        ----------------------
+        |parent field| values |
+        ----------------------
+        '''
         pass
 
     # parse the new enterered stuff
-    def parse_new(self, text) -> None:
+    def parse_new(self, text) -> List[List[str]]:
+        text_array = [t.split('\t') for t in text.split('\n')]
+        print(text_array)
+        return text_array
+
+    def update_array(self, array: List[List[str]]) -> None:
+        # TODO steps:
+        # get the number of children(rows) and value items (cols)
+        # in the system
+        # replace the text in each row, col
+        # ** verify children are always in the same order
+        # ** what to do if someone is updating the tree nodes as well
+        # ** or just get rid of tree nodes. We don't really need them.
+        for row in array:
+            for col in row:
+            
         pass
 
+    # currently doesn't work
     def nextfocus(self, event) -> None:
         event.widget.tk_focusNext().focus_set()
 
     def accept_new_text(self, event) -> Any: #treeview insert object
         new_text = event.widget.get()
+        parsed_text = self.parse_new(new_text)
 
         # Such as I002
         selected_iid = event.widget.editing_item_iid
@@ -138,7 +158,13 @@ def endprogram(event, root):
     root.destroy()
 
 if __name__ == "__main__":
-    root = tk.Tk()
+    root = ttk.Window(themename="superhero")
+
+    style = ttk.Style()
+    style.configure("Treeview",
+            rowheight=25,
+            )
+
     root.bind("<Escape>", lambda event: endprogram(event, root))
 
     column_names = ("column1", "column2", "column3", "column4")
