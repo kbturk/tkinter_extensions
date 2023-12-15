@@ -1,25 +1,15 @@
 from typing import Any, List
 import tkinter as tk
-import ttkbootstrap as ttk
+import ttkbootstrap as ttk #type: ignore
 
 class TreeviewEdit(ttk.Treeview):
     def __init__(self, master, **kw):
         super().__init__(master, **kw)
 
         self.bind("<Double-1>", self.on_double_click)
-        '''
-        style = ttk.Style()
-        style.theme_use("default")
-        style.configure("Treeview",
-                background="white",
-                foreground="black",
-                rowheight=25,
-                fieldbackground="white"
-                )
-        self.tag_configure("odd", background="white")
-        self.tag_configure("even", background="#cecece")
-        self.tag_configure("tree", background="#06428B", foreground="white")
-        '''
+        # this was part of a bigger, striped rows
+        # thing that ultimately didn't look good
+        # so I tore it out.
         self.tag_configure("odd")
         self.tag_configure("even")
         self.tag_configure("tree")
@@ -31,36 +21,48 @@ class TreeviewEdit(ttk.Treeview):
         if region_clicked not in ("tree", "cell", "nothing"):
             return
 
+        # this gives column in string format: #0, #1, etc
         column = self.identify_column(event.x)
+
+        # converts the string to an int for indexing
         column_index = int(column[1:])
 
-        selected_iid = self.focus()
-        selected_items = self.item(selected_iid)
-        selected_text = selected_items.get("text")
-        selected_values = selected_items.get("values")
+        # what's currently active
+        self.selected_iid = self.focus()
+        # the current active iid's items (text, values, parent, etc)
+        self.selected_items = self.item(self.selected_iid)
+        self.selected_text = self.selected_items.get("text")
+        self.selected_values = self.selected_items.get("values")
+        # declare new local variable
         _text = ""
 
         #new row region
-        if selected_text == "" and selected_values == "":
+        if region_clicked == "nothing":
             self.add_row(event)
             return
 
-        #parent region
-        elif column == "#0":
+        # select the text to put in the entry box
+        # parent region
+        if region_clicked == "tree":
             _text = selected_text
 
-        #child region
-        elif len(selected_values) != 0:
-            _text = selected_values[column_index - 1]
+        # child region
+        elif region_clicked == "cell" and len(self.selected_values) != 0:
+            if len(self.selected_values) < column_index:
+                # fill in blanks. This will also be used in 'accept_new_text'
+                while len(self.selected_values) < column_index:
+                    self.selected_values.append("")
 
+            _text = self.selected_values[column_index - 1]
 
-        column_box = self.bbox(selected_iid, column)
+        column_box = self.bbox(self.selected_iid, column)
         entry_edit = ttk.Entry(root, width =column_box[2])
 
-        #adding methods to record column index and item iid
+        # adding methods to record column index and item iid
         entry_edit.editing_column_index = column_index
-        entry_edit.editing_item_iid = selected_iid
+        entry_edit.editing_item_iid = self.selected_iid
 
+        # insert the existing text into the entry box
         entry_edit.insert(0, _text)
         entry_edit.select_range(0, tk.END)
 
@@ -94,6 +96,8 @@ class TreeviewEdit(ttk.Treeview):
     def update_array(self, array: List[List[str]]) -> None:
         # TODO steps:
         # get the number of children(rows) and value items (cols)
+        last_row = self.get_children()[-1]
+        
         # in the system
         # replace the text in each row, col
         # ** verify children are always in the same order
@@ -101,8 +105,8 @@ class TreeviewEdit(ttk.Treeview):
         # ** or just get rid of tree nodes. We don't really need them.
         for row in array:
             for col in row:
-            
-        pass
+                print("TODO")
+        return
 
     # currently doesn't work
     def nextfocus(self, event) -> None:
@@ -121,7 +125,7 @@ class TreeviewEdit(ttk.Treeview):
         if column_index == 0:
             self.item(selected_iid, text= new_text)
         else:
-            current_values = self.item(selected_iid).get("values")
+            current_values = self.selected_values
             if type(current_values) == list:
                 current_values[column_index - 1] = new_text
             elif type(current_values) == None:
@@ -198,6 +202,11 @@ if __name__ == "__main__":
                         index=tk.END,
                         text="SUVs")
 
+    treeview_test.insert_rows(parent="SUVs",
+                        index=tk.END,
+                        values=("Blue Whale",
+                            "1995",
+                            "Broken Door Handle"))
 
     treeview_test.pack(fill=tk.BOTH, expand=True)
 
