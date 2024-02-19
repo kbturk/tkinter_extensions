@@ -7,16 +7,17 @@ class TreeviewEdit(ttk.Treeview):
         super().__init__(master, **kw)
 
         self.bind("<Double-1>", self.on_double_click)
-        # this was part of a bigger, striped rows
-        # thing that ultimately didn't look good
-        # so I tore it out.
-        self.tag_configure("odd")
-        self.tag_configure("even")
-        self.tag_configure("tree")
+        #self.bind("<ButtonRelease-1>", self.select_item)
+        self.bind("<Delete>", self.delete_items)
+
+        self.tag_configure("odd", background="lightblue")
+        self.tag_configure("even", background="white")
+        self.tag_configure("tree", background="#06428B")
         self.root = master
 
     def on_double_click(self, event):
         region_clicked = self.identify_region(event.x, event.y)
+        print(region_clicked)
 
         # we're only interested in tree, cell, or nothing
         if region_clicked not in ("tree", "cell", "nothing"):
@@ -24,28 +25,32 @@ class TreeviewEdit(ttk.Treeview):
 
         # this gives column in string format: #0, #1, etc
         column = self.identify_column(event.x)
+        print(column)
 
         # converts the string to an int for indexing
         column_index = int(column[1:])
 
         # what's currently active
         self.selected_iid = self.focus()
+
+        #new row region
+        if region_clicked == "nothing":
+            _parent = list(self.get_children())[-1]
+            _values = [""] * len(self['columns'])
+            self.insert_rows(parent=_parent,
+                    values= _values,
+                    index=tk.END)
+            self.selected_iid = self.get_children(_parent)[-1]
+
         # the current active iid's items (text, values, parent, etc)
         self.selected_items = self.item(self.selected_iid)
         self.selected_text = self.selected_items.get("text")
         self.selected_values = self.selected_items.get("values")
 
-        print(f"type:\t{type(self.selected_text)}\nvalues:\t{self.selected_text}")
-
         if self.selected_text is None:
             self.selected_text = ""
         # declare new local variable
         _text = ""
-
-        #new row region
-        if region_clicked == "nothing":
-            self.add_row(event)
-            return
 
         # select the text to put in the entry box
         # parent region
@@ -88,15 +93,6 @@ class TreeviewEdit(ttk.Treeview):
                          w=column_box[2],
                          h=column_box[3])
 
-    # add a new row to the treeview object
-    def add_row(self, event) -> None:
-        print("TODO: ADD ROW")
-        '''
-        ----------------------
-        |parent field| values |
-        ----------------------
-        '''
-        pass
 
     def parse_new(self, text) -> List[List[str]]:
         ''' parse the new enterered text'''
@@ -104,16 +100,17 @@ class TreeviewEdit(ttk.Treeview):
         print(f"Parsed text: {text_array}")
         return text_array
 
+
     def nextfocus(self, event) -> None:
         ''' currently doesn't work'''
         event.widget.tk_focusNext().focus_set()
+
 
     def accept_new_text_single(self, event) -> Any:
         '''treeview insert new text'''
         new_text = event.widget.get()
         print(f'new text: {new_text}')
-        parsed_text = self.parse_new(new_text)
-        
+
         # Such as I002
         selected_iid = event.widget.editing_item_iid
         print(f'selected_iid: {selected_iid}')
@@ -141,24 +138,24 @@ class TreeviewEdit(ttk.Treeview):
 
         new_text = event.widget.get()
         print(f'new text: {new_text}')
-        
+
         parsed_text = self.parse_new(new_text)
-        
-        # Such as I002
+
+        # example return: 'I002'
         selected_iid = event.widget.editing_item_iid
 
-        print(f'selected_iid: {selected_iid}')
-        # Such as 0 (tree column), 1 (first self defined column)
+        # example return: 0 (tree column), 1..n (value columns)
         _colloc0 = event.widget.editing_column_index - 1
         print(f'_colloc0: {_colloc0}')
 
         if _colloc0 == -1:
             self.item(selected_iid, text= new_text)
         else:
-            # TODO: check that the order on this is always correct.
+            # checked a few cases and this does return an 'ordered' tuple
+            # matching the order of children.
             _iid_list = list(self.get_children(self.parent(selected_iid)))
             print(f'_iid_list:\t{_iid_list}')
-            
+
             _rowloc0 = _iid_list.index(selected_iid)
             print(f'_rowloc0:\t{_rowloc0}')
 
@@ -195,10 +192,28 @@ class TreeviewEdit(ttk.Treeview):
                                 _current_values[j + _colloc0] = obj
                     print(f'_iid_list item:\t{_iid_list[i + _rowloc0]}')
                     self.item(_iid_list[i + _rowloc0], values=_current_values)
-                            
+
         event.widget.destroy()
 
-    def insert_rows(self,*,parent,text="",index,values=()):
+
+    def select_item(self, event) -> None:
+        '''Some development code'''
+        cur_item = self.focus()
+        cur_items = self.selection()
+        print("self.selection:\n")
+        print([self.item(i) for i in cur_items])
+        print("self.focus:\n")
+        print(self.item(cur_item))
+
+    def delete_items(self, event) -> None:
+        cur_items = self.selection()
+        for i in cur_items:
+            self.delete(i)
+
+    def redo_row_colors(self, event) -> None:
+        pass
+
+    def insert_rows(self,*,parent,text="",index,values=(), open=False):
         '''Returns a new node in a Treview object'''
         if parent == "":
             if text in self.get_children():
@@ -208,7 +223,8 @@ class TreeviewEdit(ttk.Treeview):
                                index=index,
                                values=values,
                                iid=text,
-                               tags=("tree",))
+                               tags=("tree",),
+                               open=open)
 
         elif len(self.get_children(parent)) % 2 == 0:
             return self.insert(parent=parent,
@@ -243,7 +259,8 @@ def main() -> int:
 
     treeview_test.insert_rows(parent="",
                         index=tk.END,
-                        text="Sedan")
+                        text="Sedan",
+                        open=True)
 
     treeview_test.insert_rows(parent="Sedan",
                         index=tk.END,
@@ -261,7 +278,8 @@ def main() -> int:
 
     suv_row = treeview_test.insert_rows(parent="",
                         index=tk.END,
-                        text="SUVs")
+                        text="SUVs",
+                        open=True)
 
     treeview_test.insert_rows(parent="SUVs",
                         index=tk.END,
