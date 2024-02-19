@@ -46,6 +46,7 @@ class TreeviewEdit(ttk.Treeview):
         self.selected_items = self.item(self.selected_iid)
         self.selected_text = self.selected_items.get("text")
         self.selected_values = self.selected_items.get("values")
+        self.selected_parent = self.parent(self.selected_iid)
 
         if self.selected_text is None:
             self.selected_text = ""
@@ -113,10 +114,10 @@ class TreeviewEdit(ttk.Treeview):
 
         # Such as I002
         selected_iid = event.widget.editing_item_iid
-        print(f'selected_iid: {selected_iid}')
+        self.selected_parent = self.parent(selected_iid)
+
         # Such as 0 (tree column), 1 (first self defined column)
         column_index = event.widget.editing_column_index
-        print(f'column_index: {column_index}')
 
         if column_index == 0:
             self.item(selected_iid, text= new_text)
@@ -143,6 +144,7 @@ class TreeviewEdit(ttk.Treeview):
 
         # example return: 'I002'
         selected_iid = event.widget.editing_item_iid
+        self.selected_parent = self.parent(selected_iid)
 
         # example return: 0 (tree column), 1..n (value columns)
         _colloc0 = event.widget.editing_column_index - 1
@@ -206,12 +208,22 @@ class TreeviewEdit(ttk.Treeview):
         print(self.item(cur_item))
 
     def delete_items(self, event) -> None:
+        '''delete multiple rows'''
         cur_items = self.selection()
         for i in cur_items:
             self.delete(i)
+        self.redo_row_colors()
 
-    def redo_row_colors(self, event) -> None:
-        pass
+    def redo_row_colors(self) -> None:
+        for i, _item in enumerate(self.get_children(self.selected_parent)):
+            _tags = list(self.item(_item, 'tags'))
+            if i % 2 == 0 and 'odd' in _tags:
+                _tags.remove('odd')
+                _tags.append('even')
+            elif i % 2 != 0 and 'even' in _tags:
+                _tags.remove('even')
+                _tags.append('odd')
+            self.item(_item, tags=_tags)
 
     def insert_rows(self,*,parent,text="",index,values=(), open=False):
         '''Returns a new node in a Treview object'''
