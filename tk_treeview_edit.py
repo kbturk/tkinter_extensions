@@ -1,9 +1,17 @@
-from typing import Any, List
+from typing import Any, List, Dict, Tuple
 import tkinter as tk
 from tkinter import ttk
 
+UPARROW = "⬆"
+DOWNARROW = "⬇"
+
 class TreeviewEdit(ttk.Treeview):
     def __init__(self, master, **kw):
+        '''
+        Parameters:
+
+            master(root) -> the parent Tk object
+        '''
         super().__init__(master, **kw)
 
         self.bind("<Double-1>", self.on_double_click)
@@ -77,22 +85,12 @@ class TreeviewEdit(ttk.Treeview):
                                tags=("odd",))
 
 
-    #Event driven functions
-
-    def delete_items(self, event) -> None:
-        '''delete multiple rows'''
-        cur_items = self.selection()
-        for i in cur_items:
-            self.delete(i)
-        self.redo_row_colors()
-
-
     def sort_by_col(self, col, reverse) -> None:
         '''sort children based on values in a column'''
         print(f'Sorting: {col}')
 
         if col == '#0':
-            _parent_list = ''
+            _parent_list: Tuple[str, ...] = ('',)
         else:
             _parent_list = self.get_children()
         for p in _parent_list:
@@ -111,9 +109,49 @@ class TreeviewEdit(ttk.Treeview):
                     self.sort_by_col(_col, not reverse))
 
 
-    def nextfocus(self, event) -> None:
-        ''' currently doesn't work'''
-        event.widget.tk_focusNext().focus_set()
+    #Event driven functions
+
+    def delete_items(self, event) -> None:
+        '''delete multiple rows'''
+        cur_items = self.selection()
+        for i in cur_items:
+            self.delete(i)
+        self.redo_row_colors()
+
+
+    def select_cells(self, event) -> None:
+        '''TODO: select groups of cells by clicking and dragging
+        Going to need:
+            cell and row of start (press), end (release)
+            tags to highlight the cells (border or color?)
+            supress the row selection highlighting?
+            self.selection() is a really useful function.
+            That plus a bbox could get me what I need.
+        '''
+
+        pass
+
+
+    def next_cell(self, event) -> None:
+        ''' TODO
+            program needs to look like:
+            you know the current 'cell'
+            go to the next 'cell' (value)
+            or next child, value 0 in group
+            and open another entry cell.
+            focus won't work in this case because
+            there's no focus when the entryfield is active.
+            will need to bind and unbind value
+        
+            example data:
+            current focus: I001
+            event data: <KeyPress event send_event=True state=Mod1 keysym=Tab keycode=9 char='\t' x=268 y=57> 
+            type of event: <class 'tkinter.Event'>
+        '''
+        print(f"current focus: {event.widget.focus()}")
+        
+        print(f"event data: {event}")
+        print(f"type of event: {type(event)}")
 
 
     def on_double_click(self, event) -> None:
@@ -129,10 +167,10 @@ class TreeviewEdit(ttk.Treeview):
             return
 
         # this gives column in string format: #0, #1, etc
-        column = self.identify_column(event.x)
+        column: str = self.identify_column(event.x)
 
         # converts the string to an int for indexing
-        column_index = int(column[1:])
+        column_index: int = int(column[1:])
 
         # what's currently active
         self.selected_iid = self.focus()
@@ -192,6 +230,7 @@ class TreeviewEdit(ttk.Treeview):
         entry_edit.bind("<FocusOut>", self.accept_new_text_array)
 
         entry_edit.bind("<Return>", self.accept_new_text_array)
+        self.bind("<Tab>", self.next_cell)
 
         entry_edit.place(x=column_box[0],
                          y=column_box[1],
@@ -291,6 +330,87 @@ class TreeviewEdit(ttk.Treeview):
 
         event.widget.destroy()
 
+
+class RightClickMenu(tk.Menu):
+    '''A right-click menu object. Designed for TreeviewEdit'''
+
+    def __init__(self, master: TreeviewEdit):
+        '''
+        Parameters:
+        
+            master(TreeviewEdit) -> the parent TreeviewEdit object
+
+        #TODO: Should list:
+            sort ascending/descending
+            delete rows
+            add row
+            copy
+            paste?
+        '''
+        super().__init__(master, tearoff=False)
+        self.master = master
+        self.cid = None
+        self.iid = None
+
+        config: Dict[str, Dict[str, Any]] = {
+                "sortascending": {
+                    "label": f"{UPARROW} Sort Ascending",
+                    "command": self.sort_by_col_asc,
+                    },
+                "sortdescending": {
+                    "label": f"{DOWNARROW} Sort Descending",
+                    "command": self.sort_by_col_desc,
+                    },
+                "deleterows": {
+                    "label": "Delete Selected Rows",
+                    "command": self.master.delete_items,
+                    },
+                "addrow": {
+                    "label": "Add New Row",
+                    "command": self.insert_rows,
+                    },
+                "copy": {
+                    "label": "Copy",
+                    "command": print("TODO") #TODO
+                    },
+                "paste": {
+                    "label": "Paste",
+                    "command": print("TODO") #TODO
+                    }
+                }
+
+        sort_menu = tk.Menu(self, tearoff=False)
+        sort_menu.add_command(cnf=config["sortascending"])
+        sort_menu.add_command(cnf=config["sortdescending"])
+        self.add_cascade(menu=sort_menu, label=f'{UPARROW}{DOWNARROW} Sort')
+
+        self.add_command(cnf=config["deleterows"])
+        self.add_command(cnf=config["addrow"])
+        self.add_command(cnf=config["copy"])
+        self.add_command(cnf=config["paste"])
+
+    def sort_by_col_desc(self, event) -> None:
+        pass
+
+    def sort_by_col_asc(self, event) -> None:
+        pass
+
+    def insert_rows(self, event) -> None:
+        pass
+
+    def tk_popup_wrapper(self, event):
+        '''Display the menu below the selected cell'''
+        self.event = event
+        _iid = self.master.identify_row(event.y)
+        _col = self.master.identify_column(event.x)
+
+        # show the menu below the invoking cell
+        print(self.master.bbox(_iid, _col))
+        try:
+            self.tk_popup(0, 0)
+        except:
+            print("Ran into an issue")
+            return
 
 def endprogram(event, root):
     '''kill tk with a keystroke'''
