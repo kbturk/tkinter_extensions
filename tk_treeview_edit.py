@@ -15,7 +15,112 @@ class TreeviewEdit(ttk.Treeview):
         self.tag_configure("tree", background="#06428B")
         self.root = master
 
-    def on_double_click(self, event):
+        # set column sort:
+        for col in self['columns']:
+            self.heading(col, command= lambda _col=col:
+                    self.sort_by_col(_col, False))
+
+
+    def parse_new(self, text) -> List[List[str]]:
+        ''' parse the new enterered text'''
+        text_array = [t.split('\t') for t in text.split('\n')]
+        print(f"Parsed text: {text_array}")
+        return text_array
+
+
+    def select_item(self) -> None:
+        '''Some development code'''
+        cur_item = self.focus()
+        cur_items = self.selection()
+        print("self.selection:\n")
+        print([self.item(i) for i in cur_items])
+        print("self.focus:\n")
+        print(self.item(cur_item))
+
+
+    def redo_row_colors(self) -> None:
+        _parent_list = self.get_children()
+        for p in _parent_list:
+            for i, _item in enumerate(self.get_children(p)):
+                _tags = list(self.item(_item, 'tags'))
+                if i % 2 == 0 and 'odd' in _tags:
+                    _tags.remove('odd')
+                    _tags.append('even')
+                elif i % 2 != 0 and 'even' in _tags:
+                    _tags.remove('even')
+                    _tags.append('odd')
+                self.item(_item, tags=_tags)
+
+
+    def insert_rows(self,*,parent,text="",index,values=(), open=False):
+        '''Returns a new node in a Treview object'''
+        if parent == "":
+            if text in self.get_children():
+                text +="1"
+            return self.insert(parent=parent,
+                               text=text,
+                               index=index,
+                               values=values,
+                               iid=text,
+                               tags=("tree",),
+                               open=open)
+
+        elif len(self.get_children(parent)) % 2 == 0:
+            return self.insert(parent=parent,
+                               index=index,
+                               values=values,
+                               tags=("even",))
+        else:
+            return self.insert(parent=parent,
+                               index=index,
+                               values=values,
+                               tags=("odd",))
+
+
+    #Event driven functions
+
+    def delete_items(self, event) -> None:
+        '''delete multiple rows'''
+        cur_items = self.selection()
+        for i in cur_items:
+            self.delete(i)
+        self.redo_row_colors()
+
+
+    def sort_by_col(self, col, reverse) -> None:
+        '''sort children based on values in a column'''
+        print(f'Sorting: {col}')
+
+        if col == '#0':
+            _parent_list = ''
+        else:
+            _parent_list = self.get_children()
+        for p in _parent_list:
+            _child_list = [(self.set(k, col), k) for k in self.get_children(p)]
+            _child_list.sort(reverse = reverse)
+
+            # rearrange items in sorted positions:
+            for i, (val, k) in enumerate(_child_list):
+                self.move(k, p, i)
+
+            # redo colors
+            self.redo_row_colors()
+
+            # reverse sort next time
+            self.heading(col, command=lambda _col=col:
+                    self.sort_by_col(_col, not reverse))
+
+
+    def nextfocus(self, event) -> None:
+        ''' currently doesn't work'''
+        event.widget.tk_focusNext().focus_set()
+
+
+    def on_double_click(self, event) -> None:
+        '''creates an entry box over the cell
+           region. This will accept single and multiple
+           values copy/pasted from excel or a csv file
+           using \t and \n.'''
         region_clicked = self.identify_region(event.x, event.y)
         print(region_clicked)
 
@@ -25,7 +130,6 @@ class TreeviewEdit(ttk.Treeview):
 
         # this gives column in string format: #0, #1, etc
         column = self.identify_column(event.x)
-        print(column)
 
         # converts the string to an int for indexing
         column_index = int(column[1:])
@@ -95,18 +199,6 @@ class TreeviewEdit(ttk.Treeview):
                          h=column_box[3])
 
 
-    def parse_new(self, text) -> List[List[str]]:
-        ''' parse the new enterered text'''
-        text_array = [t.split('\t') for t in text.split('\n')]
-        print(f"Parsed text: {text_array}")
-        return text_array
-
-
-    def nextfocus(self, event) -> None:
-        ''' currently doesn't work'''
-        event.widget.tk_focusNext().focus_set()
-
-
     def accept_new_text_single(self, event) -> Any:
         '''treeview insert new text'''
         new_text = event.widget.get()
@@ -135,7 +227,9 @@ class TreeviewEdit(ttk.Treeview):
 
 
     def accept_new_text_array(self, event) -> Any:
-        '''treeview insert new text'''
+        '''treeview insert new text by array
+           this function parses csv object structures
+           which use \t and \n as dividers'''
 
         new_text = event.widget.get()
         print(f'new text: {new_text}')
@@ -196,58 +290,6 @@ class TreeviewEdit(ttk.Treeview):
                     self.item(_iid_list[i + _rowloc0], values=_current_values)
 
         event.widget.destroy()
-
-
-    def select_item(self, event) -> None:
-        '''Some development code'''
-        cur_item = self.focus()
-        cur_items = self.selection()
-        print("self.selection:\n")
-        print([self.item(i) for i in cur_items])
-        print("self.focus:\n")
-        print(self.item(cur_item))
-
-    def delete_items(self, event) -> None:
-        '''delete multiple rows'''
-        cur_items = self.selection()
-        for i in cur_items:
-            self.delete(i)
-        self.redo_row_colors()
-
-    def redo_row_colors(self) -> None:
-        for i, _item in enumerate(self.get_children(self.selected_parent)):
-            _tags = list(self.item(_item, 'tags'))
-            if i % 2 == 0 and 'odd' in _tags:
-                _tags.remove('odd')
-                _tags.append('even')
-            elif i % 2 != 0 and 'even' in _tags:
-                _tags.remove('even')
-                _tags.append('odd')
-            self.item(_item, tags=_tags)
-
-    def insert_rows(self,*,parent,text="",index,values=(), open=False):
-        '''Returns a new node in a Treview object'''
-        if parent == "":
-            if text in self.get_children():
-                text +="1"
-            return self.insert(parent=parent,
-                               text=text,
-                               index=index,
-                               values=values,
-                               iid=text,
-                               tags=("tree",),
-                               open=open)
-
-        elif len(self.get_children(parent)) % 2 == 0:
-            return self.insert(parent=parent,
-                               index=index,
-                               values=values,
-                               tags=("even",))
-        else:
-            return self.insert(parent=parent,
-                               index=index,
-                               values=values,
-                               tags=("odd",))
 
 
 def endprogram(event, root):
