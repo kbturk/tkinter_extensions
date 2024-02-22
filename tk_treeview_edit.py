@@ -20,14 +20,15 @@ class TreeviewEdit(ttk.Treeview):
         self.selected_column: str = '#0'
 
         self.bind("<Double-1>", lambda event: self.create_edit_box(event.x, event.y))
-        #self.bind("<ButtonRelease-1>", self.select_item)
+        self.bind("<Shift-Double-1>", self.clear_cells_column)
         self.bind("<Delete>", self.delete_items)
-        self.bind("<Tab>", self.next_cell)
+        self.bind("<Tab>", self.next_cell_tab)
 
+        # config options are: background, foreground, font, image
         self.tag_configure("odd", background="lightblue")
         self.tag_configure("even", background="white")
         self.tag_configure("tree", background="#06428B")
-        self.tag_configure("selected")
+        self.tag_configure("selected", foreground = "yellow") # for testing
         self.root = master
 
         # set column sort:
@@ -42,21 +43,35 @@ class TreeviewEdit(ttk.Treeview):
 
     @property
     def selected_parent(self) -> str:
+        '''parent of selected_iid'''
         return self.parent(self.selected_iid)
 
     @property
-    def selected_items(self):
+    def selected_item(self):
+        '''item of selected_iid'''
         return self.item(self.selected_iid)
 
     @property
     def selected_text(self) -> str:
-        if self.selected_items.get("text") == None:
+        '''text of selected_iid'''
+        if self.selected_item.get("text") == None:
             return ""
-        return self.selected_items.get("text")
+        return self.selected_item.get("text")
 
     @property
     def selected_values(self) -> list[Any] | Literal['']:
-        return self.selected_items.get("values")
+        '''values of selected_iid'''
+        return self.selected_item.get("values")
+
+    @property
+    def other_selected_options(self) -> list[str]:
+        print(f'other selected options: {list(self.get_children(self.selected_parent))}')
+        return list(self.get_children(self.selected_parent))
+
+    @property
+    def other_selected_options_index(self) -> int:
+        return list(self.get_children(
+            self.selected_parent)).index(self.selected_iid)
 
     def parse_new(self, text) -> List[List[str]]:
         ''' parse the new enterered text'''
@@ -66,7 +81,7 @@ class TreeviewEdit(ttk.Treeview):
 
 
     def select_item(self) -> None:
-        '''Some development code'''
+        '''Some useful development code'''
         cur_item = self.focus()
         cur_items = self.selection()
         print("self.selection:\n")
@@ -114,14 +129,11 @@ class TreeviewEdit(ttk.Treeview):
                                tags=("odd",))
 
 
-    def sort_by_col(self, col, reverse) -> None:
+    def sort_by_col(self, col: str, reverse: bool) -> None:
         '''sort children based on values in a column'''
-        print(f'Sorting: {col}')
+        print(f'Sorting: {col}. Has type {type(col)}')
 
-        if col == '#0':
-            _parent_list: Tuple[str, ...] = ('',)
-        else:
-            _parent_list = self.get_children()
+        _parent_list = self.get_children()
         for p in _parent_list:
             _child_list = [(self.set(k, col), k) for k in self.get_children(p)]
             _child_list.sort(reverse = reverse)
@@ -148,29 +160,29 @@ class TreeviewEdit(ttk.Treeview):
         self.redo_row_colors()
 
 
-    def select_cells(self, event) -> None:
-        '''TODO: select groups of cells by clicking and dragging
-        Going to need:
-            cell and row of start (press), end (release)
-            tags to highlight the cells (border or color?)
-            supress the row selection highlighting?
-            self.selection() is a really useful function.
-            That plus a bbox could get me what I need.
+    def clear_cells_column(self, event) -> None:
         '''
+        Clear all cells in a column.
+        '''
+        _region = self.identify_region(event.x, event.y)
+        if _region not in ("heading"):
+            return
+        _col = self.identify_column(event.x)
+        print(_col)
+        _parent_list = self.get_children()
 
-        pass
+        for p in _parent_list:
+            for k in self.get_children(p):
+                self.set(k, _col, '')
 
 
-    def next_cell(self, event) -> None:
+    def next_cell_tab(self, event) -> None:
         '''
         selects the next cell in a group of values.
         This cycles - after the last item it will wrap
         around to the first item.
-
-        TODO: program action based on event button.
-        example: move with arrow keys vs tab.
-        event data example: <KeyPress event send_event=True state=Mod1 keysym=Tab keycode=9 char='\t' x=268 y=57> 
         '''
+
         if self.selected_iid == "":
             # select the first cell in the group
             print(f'self.selected_iid is empty string. using first parent: {self.get_children()[0]}')
@@ -179,8 +191,8 @@ class TreeviewEdit(ttk.Treeview):
             self.focus(self.selected_iid)
         else:
             # if at the end of a list of values, move to next row
-            if self.sel_column_index >= len(self.item(self.selected_iid).get("values")):
-                _iid_list = list(self.get_children(self.parent(self.selected_iid)))
+            if self.sel_column_index >= len(self.selected_values):
+                _iid_list = self.other_selected_options
                 _next_row = (_iid_list.index(self.selected_iid) + 1) % len(_iid_list)
                 self.selected_iid = _iid_list[_next_row]
                 self.focus(self.selected_iid)
@@ -316,12 +328,11 @@ class TreeviewEdit(ttk.Treeview):
                             values=row,
                             index=tk.END)
                 else:
-                    _current_values = self.item(_iid_list[i + _rowloc0]).get("values")
+                    _current_values: list[Any] | Literal[''] = \
+                        self.item(_iid_list[i + _rowloc0]).get("values")
 
                     if type(_current_values) == None:
                         _current_values = list('')
-                    elif type(_current_values) != list:
-                        _current_values = list(_current_values)
 
                     for j, obj in enumerate(row):
                         if type(_current_values) == list:
@@ -340,7 +351,7 @@ class RightClickMenu(tk.Menu):
     def __init__(self, master: TreeviewEdit):
         '''
         Parameters:
-        
+
             master(TreeviewEdit) -> the parent TreeviewEdit object
 
         #TODO: Should list:
