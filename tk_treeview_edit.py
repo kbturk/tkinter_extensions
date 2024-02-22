@@ -1,4 +1,4 @@
-from typing import Any, List, Dict, Tuple
+from typing import Any, List, Dict, Tuple, Literal
 import tkinter as tk
 from tkinter import ttk
 
@@ -16,12 +16,13 @@ class TreeviewEdit(ttk.Treeview):
         '''
         super().__init__(master, **kw)
 
-        self.selected_iid: str = self.focus()
+        self.selected_iid: str = ''
+        self.selected_column: str = '#0'
 
-        self.bind("<Double-1>", self.create_edit_box)
+        self.bind("<Double-1>", lambda event: self.create_edit_box(event.x, event.y))
         #self.bind("<ButtonRelease-1>", self.select_item)
         self.bind("<Delete>", self.delete_items)
-        self.bind("<Tab>", self.next_cell) #WIP
+        self.bind("<Tab>", self.next_cell)
 
         self.tag_configure("odd", background="lightblue")
         self.tag_configure("even", background="white")
@@ -34,11 +35,33 @@ class TreeviewEdit(ttk.Treeview):
             self.heading(col, command= lambda _col=col:
                     self.sort_by_col(_col, False))
 
+    @property
+    def sel_column_index(self) -> int:
+        '''numeric value of column'''
+        return int(self.selected_column[1:])
+
+    @property
+    def selected_parent(self) -> str:
+        return self.parent(self.selected_iid)
+
+    @property
+    def selected_items(self):
+        return self.item(self.selected_iid)
+
+    @property
+    def selected_text(self) -> str:
+        if self.selected_items.get("text") == None:
+            return ""
+        return self.selected_items.get("text")
+
+    @property
+    def selected_values(self) -> list[Any] | Literal['']:
+        return self.selected_items.get("values")
 
     def parse_new(self, text) -> List[List[str]]:
         ''' parse the new enterered text'''
         text_array = [t.split('\t') for t in text.split('\n')]
-        print(f"Parsed text: {text_array}")
+        #print(f"Parsed text: {text_array}")
         return text_array
 
 
@@ -104,7 +127,7 @@ class TreeviewEdit(ttk.Treeview):
             _child_list.sort(reverse = reverse)
 
             # rearrange items in sorted positions:
-            for i, (val, k) in enumerate(_child_list):
+            for i, (_, k) in enumerate(_child_list):
                 self.move(k, p, i)
 
             # redo colors
@@ -139,55 +162,53 @@ class TreeviewEdit(ttk.Treeview):
 
 
     def next_cell(self, event) -> None:
-        ''' TODO
-            program needs to look like:
-            you know the current 'cell'
-            go to the next 'cell' (value)
-            or next child, value 0 in group
-            and open another entry cell.
-            focus won't work in this case because
-            there's no focus when the entryfield is active.
-            will need to bind and unbind value
+        '''
+        selects the next cell in a group of values.
+        This cycles - after the last item it will wrap
+        around to the first item.
 
-            When there is no active focus, event.widget.focus() returns an empty string
-        
-            example data:
-            current focus: I001
-            event data: <KeyPress event send_event=True state=Mod1 keysym=Tab keycode=9 char='\t' x=268 y=57> 
-            type of event: <class 'tkinter.Event'>
+        TODO: program action based on event button.
+        example: move with arrow keys vs tab.
+        event data example: <KeyPress event send_event=True state=Mod1 keysym=Tab keycode=9 char='\t' x=268 y=57> 
         '''
         if self.selected_iid == "":
             # select the first cell in the group
+            print(f'self.selected_iid is empty string. using first parent: {self.get_children()[0]}')
             self.selected_iid = self.get_children()[0]
-            _ncol: int = 0
-            _col_box = self.bbox(self.selected_iid, _ncol)
+            self.selected_column = '#0'
+            self.focus(self.selected_iid)
         else:
-            _ncol = int(self.identify_column(event.x)[1:])
+            # if at the end of a list of values, move to next row
+            if self.sel_column_index >= len(self.item(self.selected_iid).get("values")):
+                _iid_list = list(self.get_children(self.parent(self.selected_iid)))
+                _next_row = (_iid_list.index(self.selected_iid) + 1) % len(_iid_list)
+                self.selected_iid = _iid_list[_next_row]
+                self.focus(self.selected_iid)
+                self.selected_column = '#1'
+            # otherwise, move to next value
+            else:
+                self.selected_column = f'#{self.sel_column_index + 1}'
+            if (self.selected_iid in self.get_children() and
+                    self.selected_values == '' and
+                    len(self.get_children(self.selected_iid)) != 0):
+                self.selected_column = '#0'
+        _col_box = self.bbox(self.selected_iid, self.selected_column)
+        self.create_edit_box(int(_col_box[0]) + 5, int(_col_box[1]) + 5)
 
-        print(f"event widget: {event.widget}")
-        print(f"current focus: {event.widget.focus()}")
-        print(f"{type(event.widget.focus())}")
-        
-        print(f"event data: {event}")
-        print(f"type of event: {type(event)}")
 
-
-    def create_edit_box(self, event) -> None:
+    def create_edit_box(self, coordx, coordy) -> None:
         '''creates an entry box over the cell
            region. This will accept single and multiple
            values copy/pasted from excel or a csv file
            using \t and \n.'''
-        _region_clicked = self.identify_region(event.x, event.y)
+        _region_clicked = self.identify_region(coordx, coordy)
 
         # we're only interested in tree, cell, or nothing
         if _region_clicked not in ("tree", "cell", "nothing"):
             return
 
         # this gives column in string format: #0, #1, etc
-        self.selected_column: str = self.identify_column(event.x)
-
-        # converts the string to an int for indexing
-        self.sel_column_index: int = int(self.selected_column[1:])
+        self.selected_column = self.identify_column(coordx)
 
         # what's currently active
         self.selected_iid = self.focus()
@@ -201,14 +222,6 @@ class TreeviewEdit(ttk.Treeview):
                     index=tk.END)
             self.selected_iid = self.get_children(_parent)[-1]
 
-        # the current active iid's items (text, values, parent, etc)
-        self.selected_items = self.item(self.selected_iid)
-        self.selected_text = self.selected_items.get("text")
-        self.selected_values = self.selected_items.get("values")
-        self.selected_parent = self.parent(self.selected_iid)
-
-        if self.selected_text is None:
-            self.selected_text = ""
         # declare new local variable
         _text = ""
 
@@ -233,10 +246,6 @@ class TreeviewEdit(ttk.Treeview):
         column_box = self.bbox(self.selected_iid, self.selected_column)
         entry_edit = tk.Entry(self.root, width =int(column_box[2]))
 
-        # adding methods to record column index and item iid
-        #entry_edit.editing_column_index = self.sel_column_index
-        #entry_edit.editing_item_iid = self.selected_iid
-
         # insert the existing text into the entry box
         entry_edit.insert(0, _text)
         entry_edit.select_range(0, tk.END)
@@ -256,18 +265,9 @@ class TreeviewEdit(ttk.Treeview):
     def accept_new_text_single(self, event) -> Any:
         '''treeview insert new text'''
         _new_text = event.widget.get()
-        print(f'new text: {_new_text}')
-
-        # Such as I002
-        # selected_iid = event.widget.editing_item_iid
-        selected_iid = self.selected_iid
-        self.selected_parent = self.parent(selected_iid)
-
-        # Such as 0 (tree column), 1 (first self defined column)
-        # column_index = event.widget.editing_column_index
 
         if self.sel_column_index == 0:
-            self.item(selected_iid, text= _new_text)
+            self.item(self.selected_iid, text= _new_text)
         else:
             current_values = self.selected_values
             if type(current_values) == list:
@@ -276,7 +276,7 @@ class TreeviewEdit(ttk.Treeview):
                 current_values=list('')
             if type(current_values) != list:
                 current_values = list(current_values)
-            self.item(selected_iid, values=current_values)
+            self.item(self.selected_iid, values=current_values)
 
         event.widget.destroy()
 
@@ -287,18 +287,13 @@ class TreeviewEdit(ttk.Treeview):
            which use \t and \n as dividers'''
 
         _new_text = event.widget.get()
-        print(f'new text: {_new_text}')
 
         _parsed_text = self.parse_new(_new_text)
 
         # example return: 'I002'
         _selected_iid = self.selected_iid
-        self.selected_parent = self.parent(_selected_iid)
 
-        # example return: 0 (tree column), 1..n (value columns)
-        # _colloc0 = event.widget.editing_column_index - 1
         _colloc0 = self.sel_column_index - 1
-        print(f'_colloc0: {_colloc0}')
 
         if _colloc0 == -1:
             self.item(_selected_iid, text= _new_text)
@@ -306,28 +301,22 @@ class TreeviewEdit(ttk.Treeview):
             # checked a few cases and this does return an 'ordered' tuple
             # matching the order of children.
             _iid_list = list(self.get_children(self.parent(_selected_iid)))
-            print(f'_iid_list:\t{_iid_list}')
 
             _rowloc0 = _iid_list.index(_selected_iid)
-            print(f'_rowloc0:\t{_rowloc0}')
 
             for i, row in enumerate(_parsed_text):
 
                 if len(row) + _colloc0 > len(self['columns']):
                     # truncate row
                     row = row[0:(len(self['columns']) + _colloc0)]
-                    print(f'row truncated:\t{row}')
 
                 if i + _rowloc0 > len(_iid_list) - 1:
-                    print(f'inserting row')
                     row = [""] * _colloc0 + row
-                    print(f'row: {row}')
                     self.insert_rows(parent=self.parent(_selected_iid),
                             values=row,
                             index=tk.END)
                 else:
                     _current_values = self.item(_iid_list[i + _rowloc0]).get("values")
-                    print(f'current_values:\t{_current_values}')
 
                     if type(_current_values) == None:
                         _current_values = list('')
@@ -337,12 +326,9 @@ class TreeviewEdit(ttk.Treeview):
                     for j, obj in enumerate(row):
                         if type(_current_values) == list:
                             if len(_current_values) - 1 < j + _colloc0:
-                                print(f'appending {obj} to end of row')
                                 _current_values.append(obj)
                             else:
-                                print(f'replacing {_current_values[j + _colloc0]} with {obj}')
                                 _current_values[j + _colloc0] = obj
-                    print(f'_iid_list item:\t{_iid_list[i + _rowloc0]}')
                     self.item(_iid_list[i + _rowloc0], values=_current_values)
 
         event.widget.destroy()
