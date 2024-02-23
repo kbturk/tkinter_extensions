@@ -1,3 +1,23 @@
+# Copyright (c) 2024 kbt | terminus, LLC
+
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+
 from typing import Any, List, Dict, Tuple, Literal
 import tkinter as tk
 from tkinter import ttk
@@ -28,7 +48,6 @@ class TreeviewEdit(ttk.Treeview):
         self.tag_configure("odd", background="lightblue")
         self.tag_configure("even", background="white")
         self.tag_configure("tree", background="#06428B")
-        self.tag_configure("selected", foreground = "yellow") # for testing
         self.root = master
 
         # set column sort:
@@ -76,7 +95,6 @@ class TreeviewEdit(ttk.Treeview):
     def parse_new(self, text) -> List[List[str]]:
         ''' parse the new enterered text'''
         text_array = [t.split('\t') for t in text.split('\n')]
-        #print(f"Parsed text: {text_array}")
         return text_array
 
 
@@ -346,7 +364,10 @@ class TreeviewEdit(ttk.Treeview):
 
 
 class RightClickMenu(tk.Menu):
-    '''A right-click menu object. Designed for TreeviewEdit'''
+    '''
+    A right-click menu object. Designed for TreeviewEdit
+    WIP
+    '''
 
     def __init__(self, master: TreeviewEdit):
         '''
