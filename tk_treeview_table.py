@@ -57,6 +57,10 @@ class TreeviewTable(ttk.Treeview):
             self.heading(col, command= lambda _col=col:
                     self.sort_by_col(_col, False))
 
+        # add right click popup
+        self.popup = RightClickMenu(master, self)
+        self.bind("<Button-3>", self.popup.tk_popup_wrapper)
+
     @property
     def sel_column_index(self) -> int:
         '''numeric value of column'''
@@ -125,7 +129,7 @@ class TreeviewTable(ttk.Treeview):
                 self.item(_item, tags=_tags)
 
 
-    def insert_rows(self,*,parent,text="",index,values=(), open=False):
+    def insert_row(self,*,parent,text="",index,values=(), open=False):
         '''Returns a new node in a Treview object'''
         if parent == "":
             if text in self.get_children():
@@ -152,7 +156,6 @@ class TreeviewTable(ttk.Treeview):
 
     def sort_by_col(self, col: str, reverse: bool) -> None:
         '''sort children based on values in a column'''
-        print(f'Sorting: {col}. Has type {type(col)}')
 
         _parent_list = self.get_children()
         for p in _parent_list:
@@ -171,6 +174,28 @@ class TreeviewTable(ttk.Treeview):
                     self.sort_by_col(_col, not reverse))
 
 
+    def copy_to_clipboard(self) -> None:
+        '''
+        Copy rows and tree nodes to clipboard
+        '''
+        self.root.clipboard_clear()
+        _selection = self.selection()
+        _text = ""
+        if len(_selection) == 0:
+            print("Nothing to copy")
+            return
+        for _item in _selection:
+            if self.item(_item)["text"] != "":
+                _text += self.item(_item)["text"] + "\n"
+            if len(self.item(_item)["values"]) > 0:
+                _text += "\t".join(
+                    [str(x) for x in self.item(_item)["values"]]) + "\n"
+
+        self.root.clipboard_append(_text)
+        print("copied to clipboard:")
+        print(_text)
+
+
     #Event driven functions
 
     def delete_items(self, event) -> None:
@@ -181,6 +206,48 @@ class TreeviewTable(ttk.Treeview):
         self.redo_row_colors()
 
 
+    def insert_one_row_from_menu(self, event) -> None:
+        '''
+        Insert one row in TreeviewTable using the right click menu.
+        '''
+        _region_clicked = self.identify_region(event.x, event.y)
+        if _region_clicked == "nothing":
+            # add to the end of the table
+            _parent = list(self.get_children())[-1]
+            self.selected_iid = self.get_children(_parent)[-1]
+        elif _region_clicked == "tree":
+            # row will be added before first item in tree
+            _tree_row = self.identify_row(event.y)
+            self.selected_iid = list(self.get_children(_tree_row))[0]
+            print(f"tree clicked")
+            pass
+        elif _region_clicked == "cell":
+            self.selected_iid = self.identify_row(event.y)
+        elif _region_clicked == "heading":
+            self.selected_iid = list(self.get_children(
+                                  list(self.get_children())[0]))[0]
+        elif self.selected_iid == "":
+            self.selected_iid = list(self.get_children(
+                                  list(self.get_children())[0]))[0]
+        else:
+            print(f"region: {_region_clicked} not in list")
+        
+        # TODO: what to do if there are no children in the table?
+        if self.selected_parent == "" and \
+            len(self.get_children(self.selected_iid)) > 0:
+            self.selected_iid = list(
+                    self.get_children(self.selected_iid))[0]
+
+        _new_row = self.insert_row(parent=self.selected_parent,
+                index=self.other_selected_options_index,
+                values=[""] * len(self["columns"])
+                )
+        self.redo_row_colors()
+        self.focus(_new_row)
+        self.selection_set(_new_row)
+        self.selected_iid = _new_row
+        
+
     def clear_cells_column(self, event) -> None:
         '''
         Clear all cells in a column.
@@ -189,7 +256,18 @@ class TreeviewTable(ttk.Treeview):
         if _region not in ("heading"):
             return
         _col = self.identify_column(event.x)
-        print(_col)
+        _parent_list = self.get_children()
+
+        for p in _parent_list:
+            for k in self.get_children(p):
+                self.set(k, _col, '')
+
+
+    def clear_column_from_menu(self, event) -> None:
+        '''
+        Clear all cells in a column from the popup menu.
+        '''
+        _col = self.identify_column(event.x)
         _parent_list = self.get_children()
 
         for p in _parent_list:
@@ -235,30 +313,25 @@ class TreeviewTable(ttk.Treeview):
            values copy/pasted from excel or a csv file
            using \t and \n.'''
         _region_clicked = self.identify_region(coordx, coordy)
+        _text = ""
 
-        # we're only interested in tree, cell, or nothing
         if _region_clicked not in ("tree", "cell", "nothing"):
             return
 
-        # this gives column in string format: #0, #1, etc
         self.selected_column = self.identify_column(coordx)
-
-        # what's currently active
         self.selected_iid = self.focus()
 
         #new row region
         if _region_clicked == "nothing":
             _parent = list(self.get_children())[-1]
             _values = [""] * len(self['columns'])
-            self.insert_rows(parent=_parent,
+            _new_row = self.insert_row(parent=_parent,
                     values= _values,
                     index=tk.END)
-            self.selected_iid = self.get_children(_parent)[-1]
-
-        # declare new local variable
-        _text = ""
+            self.selected_iid = _new_row
 
         # select the text to put in the entry box
+
         # parent region
         if _region_clicked == "tree":
             _text = self.selected_text
@@ -286,7 +359,6 @@ class TreeviewTable(ttk.Treeview):
         entry_edit.focus()
 
         entry_edit.bind("<FocusOut>", self.accept_new_text_array)
-
         entry_edit.bind("<Return>", self.accept_new_text_array)
 
         entry_edit.place(x=column_box[0],
@@ -323,7 +395,6 @@ class TreeviewTable(ttk.Treeview):
 
         _parsed_text = self.parse_new(_new_text)
 
-        # example return: 'I002'
         _selected_iid = self.selected_iid
 
         _colloc0 = self.sel_column_index - 1
@@ -345,7 +416,7 @@ class TreeviewTable(ttk.Treeview):
 
                 if i + _rowloc0 > len(_iid_list) - 1:
                     row = [""] * _colloc0 + row
-                    self.insert_rows(parent=self.parent(_selected_iid),
+                    self.insert_row(parent=self.parent(_selected_iid),
                             values=row,
                             index=tk.END)
                 else:
@@ -366,19 +437,70 @@ class TreeviewTable(ttk.Treeview):
         event.widget.destroy()
 
 
+    def accept_new_text_paste(self, event) -> Any:
+        '''treeview insert new text by array
+           this function parses csv/excel object structures
+           which use \t and \n as dividers'''
+
+        _text = self.root.clipboard_get()
+        print("text to paste:")
+        print(_text)
+
+        _parsed_text = self.parse_new(_text)
+
+        _selected_iid = self.identify_row(event.y)
+        _selected_column = self.identify_column(event.x)
+        print(_selected_column)
+
+        _colloc0 = int(_selected_column[1:]) - 1
+
+        if _colloc0 == -1:
+            self.item(_selected_iid, text= _text)
+        else:
+            _iid_list = list(self.get_children(self.parent(_selected_iid)))
+
+            _rowloc0 = _iid_list.index(_selected_iid)
+
+            for i, row in enumerate(_parsed_text):
+
+                if len(row) + _colloc0 > len(self['columns']):
+                    # truncate row
+                    row = row[0:(len(self['columns']) + _colloc0)]
+
+                if i + _rowloc0 > len(_iid_list) - 1:
+                    row = [""] * _colloc0 + row
+                    self.insert_row(parent=self.parent(_selected_iid),
+                            values=row,
+                            index=tk.END)
+                else:
+                    _current_values: list[Any] | Literal[''] = \
+                        self.item(_iid_list[i + _rowloc0]).get("values")
+
+                    if type(_current_values) == None:
+                        _current_values = list('')
+
+                    for j, obj in enumerate(row):
+                        if type(_current_values) == list:
+                            if len(_current_values) - 1 < j + _colloc0:
+                                _current_values.append(obj)
+                            else:
+                                _current_values[j + _colloc0] = obj
+                    self.item(_iid_list[i + _rowloc0], values=_current_values)
+
+
 class RightClickMenu(tk.Menu):
     '''
-    A right-click menu object. Designed for TreeviewTable
-    WIP
+    Right-click menu object for TreeviewTable.
     '''
 
-    def __init__(self, master: TreeviewTable):
+    def __init__(self, master: tk.Tk, parent: TreeviewTable):
         '''
         Parameters:
 
-            master(TreeviewTable) -> the parent TreeviewTable object
+            master(root) -> root object (tk.Tk)
+            parent(TreeviewTable) -> the parent TreeviewTable object
 
-        #TODO: Should list:
+        #Lists:
             sort ascending/descending
             delete rows
             add row
@@ -387,6 +509,7 @@ class RightClickMenu(tk.Menu):
         '''
         super().__init__(master, tearoff=False)
         self.master = master
+        self.parent = parent
         self.cid = None
         self.iid = None
 
@@ -401,19 +524,23 @@ class RightClickMenu(tk.Menu):
                     },
                 "deleterows": {
                     "label": "Delete Selected Rows",
-                    "command": self.master.delete_items,
+                    "command": self.delete_items,
+                    },
+                "clearcolumn": {
+                    "label": "Clear Column",
+                    "command": self.clear_column,
                     },
                 "addrow": {
                     "label": "Add New Row",
-                    "command": self.insert_rows,
+                    "command": self.insert_row,
                     },
                 "copy": {
                     "label": "Copy",
-                    "command": print("TODO") #TODO
+                    "command": self.parent.copy_to_clipboard,
                     },
                 "paste": {
                     "label": "Paste",
-                    "command": print("TODO") #TODO
+                    "command": self.paste_text,
                     }
                 }
 
@@ -423,32 +550,44 @@ class RightClickMenu(tk.Menu):
         self.add_cascade(menu=sort_menu, label=f'{UPARROW}{DOWNARROW} Sort')
 
         self.add_command(cnf=config["deleterows"])
+        self.add_command(cnf=config["clearcolumn"])
         self.add_command(cnf=config["addrow"])
         self.add_command(cnf=config["copy"])
         self.add_command(cnf=config["paste"])
 
-    def sort_by_col_desc(self, event) -> None:
+    def sort_by_col_desc(self) -> None:
+        _col = self.parent.identify_column(self.event.x)
+        self.parent.sort_by_col(_col, True)
         pass
 
-    def sort_by_col_asc(self, event) -> None:
-        pass
+    def sort_by_col_asc(self) -> None:
+        _col = self.parent.identify_column(self.event.x)
+        self.parent.sort_by_col(_col, False)
 
-    def insert_rows(self, event) -> None:
-        pass
+    def insert_row(self) -> None:
+        self.parent.insert_one_row_from_menu(self.event)
+
+    def clear_column(self) -> None:
+        self.parent.clear_column_from_menu(self.event)
+
+    def delete_items(self) -> None:
+        self.parent.delete_items(self.event)
+   
+    def paste_text(self) -> None:
+        self.parent.accept_new_text_paste(self.event)
 
     def tk_popup_wrapper(self, event):
-        '''Display the menu below the selected cell'''
         self.event = event
-        _iid = self.master.identify_row(event.y)
-        _col = self.master.identify_column(event.x)
 
         # show the menu below the invoking cell
-        print(self.master.bbox(_iid, _col))
         try:
-            self.tk_popup(0, 0)
+            self.tk_popup(event.x_root, event.y_root, 0)
         except:
             print("Ran into an issue")
             return
+        finally:
+            self.grab_release()
+    
 
 def endprogram(event, root):
     '''kill tk with a keystroke'''
@@ -469,31 +608,31 @@ def main() -> int:
     treeview_test.heading("#3", text="Color")
     treeview_test.heading("#4", text="Problem")
 
-    treeview_test.insert_rows(parent="",
+    treeview_test.insert_row(parent="",
                         index=tk.END,
                         text="Sedan",
                         open=True)
 
-    treeview_test.insert_rows(parent="Sedan",
+    treeview_test.insert_row(parent="Sedan",
                         index=tk.END,
                         values=("Nissan Altama",
                             "2010",
                             "Silver",
                             "Expired Paper Plates"))
 
-    treeview_test.insert_rows(parent="Sedan",
+    treeview_test.insert_row(parent="Sedan",
                         index=tk.END,
                         values=("Subaru Loyal",
                             "1990",
                             "White",
                             "Total S-Box"))
 
-    suv_row = treeview_test.insert_rows(parent="",
+    suv_row = treeview_test.insert_row(parent="",
                         index=tk.END,
                         text="SUVs",
                         open=True)
 
-    treeview_test.insert_rows(parent="SUVs",
+    treeview_test.insert_row(parent="SUVs",
                         index=tk.END,
                         values=("Blue Whale",
                             "1995",
