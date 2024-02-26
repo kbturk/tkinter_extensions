@@ -43,6 +43,8 @@ class TreeviewTable(ttk.Treeview):
 
         self.bind("<Double-1>", lambda event: self.create_edit_box(event.x, event.y))
         self.bind("<Shift-Double-1>", self.clear_cells_column)
+        self.bind("<Control-C>", lambda _: self.copy_to_clipboard())
+        self.bind("<Control-V>", self.accept_new_text_paste)
         self.bind("<Delete>", self.delete_items)
         self.bind("<Tab>", self.next_cell_tab)
 
@@ -180,16 +182,17 @@ class TreeviewTable(ttk.Treeview):
         '''
         self.root.clipboard_clear()
         _selection = self.selection()
-        _text = ""
+        _text_list = []
         if len(_selection) == 0:
             print("Nothing to copy")
             return
         for _item in _selection:
             if self.item(_item)["text"] != "":
-                _text += self.item(_item)["text"] + "\n"
+                _text_list.append(self.item(_item)["text"])
             if len(self.item(_item)["values"]) > 0:
-                _text += "\t".join(
-                    [str(x) for x in self.item(_item)["values"]]) + "\n"
+                _text_list.append("\t".join(
+                    [str(x) for x in self.item(_item)["values"]]))
+        _text = "\n".join(_text_list)
 
         self.root.clipboard_append(_text)
         print("copied to clipboard:")
@@ -239,7 +242,7 @@ class TreeviewTable(ttk.Treeview):
                     self.get_children(self.selected_iid))[0]
 
         _new_row = self.insert_row(parent=self.selected_parent,
-                index=self.other_selected_options_index,
+                index=self.other_selected_options_index + 1,
                 values=[""] * len(self["columns"])
                 )
         self.redo_row_colors()
@@ -447,10 +450,20 @@ class TreeviewTable(ttk.Treeview):
         print(_text)
 
         _parsed_text = self.parse_new(_text)
-
-        _selected_iid = self.identify_row(event.y)
+        _region_clicked = self.identify_region(event.x, event.y)
+        print(_region_clicked)
+        if _region_clicked == "nothing":
+            self.insert_one_row_from_menu(event)
+            _parent = list(self.get_children())[-1]
+            _selected_iid = self.get_children(_parent)[-1]
+            
+            print(f"_selected_iid: {_selected_iid}")
+        elif _region_clicked == "heading":
+            _selected_iid = list(self.get_children(
+                                  list(self.get_children())[0]))[0]
+        else:
+            _selected_iid = self.identify_row(event.y)
         _selected_column = self.identify_column(event.x)
-        print(_selected_column)
 
         _colloc0 = int(_selected_column[1:]) - 1
 
@@ -458,6 +471,8 @@ class TreeviewTable(ttk.Treeview):
             self.item(_selected_iid, text= _text)
         else:
             _iid_list = list(self.get_children(self.parent(_selected_iid)))
+            print(f"_iid_list: {_iid_list}")
+            print(f"_selected_iid is now: {_selected_iid}")
 
             _rowloc0 = _iid_list.index(_selected_iid)
 

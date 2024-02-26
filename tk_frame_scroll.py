@@ -42,7 +42,7 @@ class FrameScroll:
         test code
     '''
 
-    def __init__(self, parent, master: tk.Tk, inner_frame: tk.Frame):
+    def __init__(self, parent, master: tk.Tk):
         self.outer_frame = ttk.Frame(parent)
         self.canvas_frame = tk.Canvas(self.outer_frame, bd=0,
                 highlightthickness=0)
