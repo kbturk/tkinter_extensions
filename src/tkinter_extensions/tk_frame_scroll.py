@@ -55,9 +55,9 @@ class FrameScroll(tk.Frame):
                 window=self.interior,
                 anchor=tk.NW)
 
-        self.scrollbar = ttk.Scrollbar(self,
-                orient=tk.VERTICAL,
+        self.scrollbar = ttk.Scrollbar(self, orient=tk.VERTICAL,
                 command=self.canvas.yview)
+        self.canvas['yscrollcommand'] = self.scrollbar.set
         self.scrollbar.pack(fill=tk.Y, side= tk.RIGHT, expand= tk.FALSE)
 
 
@@ -66,6 +66,7 @@ class FrameScroll(tk.Frame):
         self.bind('<Enter>', self.bound_to_mousewheel)
         self.bind('<Leave>', self.unbound_to_mousewheel)
 
+        self.pack()
 
     def configure_interior(self, event) -> None:
             _size = (self.interior.winfo_reqwidth(),
@@ -97,12 +98,12 @@ def end_program(event, root) -> None:
 
 def notebook_example(root: tk.Tk) -> None:
 
-    parent = ttk.Notebook(root, padding = "2 2 12 12")
-    parent.pack(expand=1, fill="both")
+    mainframe = ttk.Notebook(root, padding = "2 2 12 12")
+    mainframe.pack(expand=1, fill="both")
     tabs: Dict[str, FrameScroll] = {}
     for i in range(5):
-        tabs[f"framescroll{i}"] = FrameScroll(parent)
-        parent.add(tabs[f"framescroll{i}"], text=f"Scroll {i}")
+        tabs[f"framescroll{i}"] = FrameScroll(mainframe)
+        mainframe.add(tabs[f"framescroll{i}"], text=f"Scroll {i}")
         buttons = []
         for j in range(20):
             buttons.append(
@@ -118,7 +119,7 @@ def frame_example(root: tk.Tk) -> None:
     mainframe = ttk.Frame(root, padding = "2 2 12 12")
     mainframe.pack(expand=1, fill="both")
     frame= FrameScroll(mainframe)
-    frame.pack()
+    #frame.pack()
     label = ttk.Label(root, text="Shrink the window to scroll")
     label.pack()
     buttons = []
@@ -132,7 +133,7 @@ def main() -> int:
     '''example program'''
     root = tk.Tk()
     root.bind('<Escape>', lambda e: end_program(e, root)) #end program
-    #notebook_example(root)
+    notebook_example(root)
     #frame_example(root)
 
     return 0
