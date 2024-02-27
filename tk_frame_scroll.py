@@ -28,10 +28,9 @@ class FrameScroll(tk.Frame):
     This class nests several Tk objects to
     creates a vertical scroll bar in a frame.
 
-    parent contains
-        outer_frame contains
-            canvas w/scroll bar contains
-                interior
+        FrameScroll - tk frame containing
+            'canvas' w/scroll bar containing
+                'interior' - tk frame that can be populated
 
     Parameters:
         parent -> the parent Tk object

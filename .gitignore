@@ -1,0 +1,4 @@
+scratchwork/*
+.venv/*
+__pycache__/*
+*.swp
