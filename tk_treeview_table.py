@@ -653,7 +653,11 @@ def main() -> int:
                             "1995",
                             "Broken Door Handle"))
 
-    treeview_test.pack(fill=tk.BOTH, expand=True)
+    treeview_test.pack(fill=tk.BOTH, side= tk.LEFT, expand=True)
+    _scrollbar = ttk.Scrollbar(root,
+                orient=tk.VERTICAL,
+                command=treeview_test.yview)
+    _scrollbar.pack(fill=tk.Y, side= tk.RIGHT, expand= tk.FALSE)
 
     root.mainloop()
 
